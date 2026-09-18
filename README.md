@@ -45,7 +45,6 @@ This repo defines the entire environment as code:
    └──────────┘
 ```
 
-See `diagrams/architecture.png` for the exported diagram (add your own — draw.io / Excalidraw work well).
 
 ## Repo Structure
 
@@ -133,8 +132,6 @@ cd terraform/environments/dev
 terraform destroy
 ```
 
-Or trigger the Jenkins pipeline with the `DESTROY` parameter set to `true` (requires separate confirmation).
-
 ## Security Notes
 
 - Database and app-tier instances have **no public IP** — only reachable via ALB (app) or bastion (SSH).
@@ -142,10 +139,4 @@ Or trigger the Jenkins pipeline with the `DESTROY` parameter set to `true` (requ
 - SSH root login and password auth are disabled by the `hardening` Ansible role.
 - Database credentials are passed via `TF_VAR_*` environment variables, never committed — in a real production setup, swap this for AWS Secrets Manager.
 
-## Possible Extensions
 
-- Add HTTPS via ACM certificate + Route 53
-- Add CloudFront + S3 for static asset delivery
-- Multi-AZ RDS + read replica for prod
-- Terraform Cloud/Atlantis instead of Jenkins for GitOps-style plan/apply on PRs
-- CloudWatch alarms + SNS notifications for ASG scaling events
