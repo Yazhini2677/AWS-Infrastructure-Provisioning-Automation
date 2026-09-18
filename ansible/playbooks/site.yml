@@ -1,0 +1,22 @@
+---
+# Master playbook - run against dynamic inventory after `terraform apply`.
+# Usage: ansible-playbook playbooks/site.yml
+
+- name: Configure all app-tier servers
+  hosts: app
+  become: true
+  gather_facts: true
+
+  roles:
+    - common
+    - hardening
+    - webserver
+
+- name: Sanity check bastion host
+  hosts: bastion
+  become: true
+  gather_facts: true
+
+  roles:
+    - common
+    - hardening

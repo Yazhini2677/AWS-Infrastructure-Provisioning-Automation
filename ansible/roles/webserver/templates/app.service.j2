@@ -1,0 +1,15 @@
+[Unit]
+Description={{ app_name }} application service
+After=network.target
+
+[Service]
+Type=simple
+User={{ deploy_user }}
+WorkingDirectory=/opt/{{ app_name }}
+ExecStart=/usr/bin/node /opt/{{ app_name }}/server.js
+Restart=on-failure
+RestartSec=5
+Environment=PORT={{ app_internal_port }}
+
+[Install]
+WantedBy=multi-user.target

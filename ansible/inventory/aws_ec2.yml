@@ -1,0 +1,23 @@
+# Dynamic inventory: pulls live EC2 instances from AWS instead of a static hosts file.
+# Requires: pip install boto3 botocore, and ansible-galaxy collection install amazon.aws
+plugin: amazon.aws.aws_ec2
+
+regions:
+  - us-east-1
+
+# Only include instances tagged by our Terraform run
+filters:
+  tag:Project: aws-infra-demo
+  instance-state-name: running
+
+# Group instances by their Role tag (app, bastion) so playbooks can target
+# `hosts: app` or `hosts: bastion` directly.
+keyed_groups:
+  - key: tags.Role
+    prefix: ""
+    separator: ""
+
+# Use the private IP since instances live in private subnets and are
+# reached through the bastion host via ProxyJump (see ansible.cfg).
+compose:
+  ansible_host: private_ip_address

@@ -1,0 +1,12 @@
+# Copy this file to terraform.tfvars and fill in your own values.
+# terraform.tfvars is gitignored - never commit real secrets or IPs.
+
+project_name           = "aws-infra-demo"
+aws_region              = "us-east-1"
+trusted_ssh_cidrs       = ["203.0.113.5/32"]   # replace with YOUR public IP/32
+key_name                = "my-ec2-keypair"
+instance_profile_name   = "my-app-instance-profile"
+
+# Pass secrets via environment variables instead of hardcoding here:
+#   export TF_VAR_db_username=admin
+#   export TF_VAR_db_password='use-a-real-secret-manager-in-prod'

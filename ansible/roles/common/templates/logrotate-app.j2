@@ -1,0 +1,9 @@
+/var/log/{{ app_name }}/*.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 {{ deploy_user }} {{ deploy_group }}
+}

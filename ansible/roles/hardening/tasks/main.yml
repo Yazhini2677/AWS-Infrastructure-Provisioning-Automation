@@ -1,0 +1,70 @@
+---
+- name: Disable root SSH login
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?PermitRootLogin"
+    line: "PermitRootLogin no"
+  notify: Restart sshd
+
+- name: Disable SSH password authentication (keys only)
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?PasswordAuthentication"
+    line: "PasswordAuthentication no"
+  notify: Restart sshd
+
+- name: Set client alive interval to drop idle sessions
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?ClientAliveInterval"
+    line: "ClientAliveInterval 300"
+  notify: Restart sshd
+
+- name: Install fail2ban to block brute-force attempts
+  dnf:
+    name: fail2ban
+    state: present
+
+- name: Ensure fail2ban is running
+  service:
+    name: fail2ban
+    state: started
+    enabled: true
+
+- name: Install firewalld
+  dnf:
+    name: firewalld
+    state: present
+
+- name: Ensure firewalld is running
+  service:
+    name: firewalld
+    state: started
+    enabled: true
+
+- name: Allow SSH through firewalld
+  firewalld:
+    service: ssh
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Allow app port through firewalld
+  firewalld:
+    port: "{{ app_port }}/tcp"
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Set restrictive permissions on /etc/shadow
+  file:
+    path: /etc/shadow
+    mode: "0000"
+
+- name: Remove unused/insecure packages
+  dnf:
+    name:
+      - telnet
+      - rsh
+    state: absent
+    ignore_errors: true

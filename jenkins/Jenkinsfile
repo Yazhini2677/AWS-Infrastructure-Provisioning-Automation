@@ -1,0 +1,145 @@
+// Jenkins declarative pipeline for the AWS infra automation project.
+// Stages: validate -> plan -> manual approval -> apply -> configure (Ansible) -> smoke test.
+
+pipeline {
+    agent any
+
+    parameters {
+        choice(name: 'ENVIRONMENT', choices: ['dev', 'prod'], description: 'Target environment')
+        booleanParam(name: 'DESTROY', defaultValue: false, description: 'Run terraform destroy instead of apply')
+    }
+
+    environment {
+        TF_DIR      = "terraform/environments/${params.ENVIRONMENT}"
+        AWS_REGION  = "us-east-1"
+        AWS_CREDS   = credentials('aws-jenkins-creds') // configured in Jenkins credential store
+    }
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Terraform Format & Validate') {
+            steps {
+                dir(env.TF_DIR) {
+                    sh 'terraform init -backend=true -input=false'
+                    sh 'terraform fmt -check -recursive'
+                    sh 'terraform validate'
+                }
+            }
+        }
+
+        stage('Terraform Plan') {
+            steps {
+                dir(env.TF_DIR) {
+                    sh 'terraform plan -input=false -out=tfplan'
+                }
+            }
+        }
+
+        stage('Manual Approval') {
+            when {
+                expression { !params.DESTROY }
+            }
+            steps {
+                input message: "Apply Terraform plan for ${params.ENVIRONMENT}?", ok: 'Apply'
+            }
+        }
+
+        stage('Terraform Apply') {
+            when {
+                expression { !params.DESTROY }
+            }
+            steps {
+                dir(env.TF_DIR) {
+                    sh 'terraform apply -input=false tfplan'
+                }
+            }
+        }
+
+        stage('Terraform Destroy') {
+            when {
+                expression { params.DESTROY }
+            }
+            steps {
+                input message: "Confirm DESTROY of ${params.ENVIRONMENT}? This is irreversible.", ok: 'Destroy'
+                dir(env.TF_DIR) {
+                    sh 'terraform destroy -auto-approve'
+                }
+            }
+        }
+
+        stage('Export Infra Outputs') {
+            when {
+                expression { !params.DESTROY }
+            }
+            steps {
+                dir(env.TF_DIR) {
+                    sh '''
+                        terraform output -raw bastion_public_ip > ../../../bastion_ip.txt
+                        terraform output -raw alb_dns_name > ../../../alb_dns.txt
+                    '''
+                }
+            }
+        }
+
+        stage('Configure Servers with Ansible') {
+            when {
+                expression { !params.DESTROY }
+            }
+            steps {
+                dir('ansible') {
+                    sh '''
+                        export BASTION_IP=$(cat ../bastion_ip.txt)
+                        ansible-galaxy collection install amazon.aws community.general
+                        ansible-playbook playbooks/site.yml
+                    '''
+                }
+            }
+        }
+
+        stage('Smoke Test') {
+            when {
+                expression { !params.DESTROY }
+            }
+            steps {
+                sh '''
+                    ALB_DNS=$(cat alb_dns.txt)
+                    echo "Waiting for ALB to become healthy..."
+                    for i in $(seq 1 10); do
+                        STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://$ALB_DNS/healthz || true)
+                        if [ "$STATUS" = "200" ]; then
+                            echo "Smoke test passed (HTTP $STATUS)"
+                            exit 0
+                        fi
+                        echo "Attempt $i: got HTTP $STATUS, retrying in 15s..."
+                        sleep 15
+                    done
+                    echo "Smoke test failed - app never became healthy"
+                    exit 1
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Pipeline succeeded for ${params.ENVIRONMENT}."
+        }
+        failure {
+            echo "Pipeline failed for ${params.ENVIRONMENT}. Check logs above."
+        }
+        always {
+            archiveArtifacts artifacts: '**/tfplan', allowEmptyArchive: true
+        }
+    }
+}

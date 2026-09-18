@@ -1,0 +1,5 @@
+---
+server_timezone: "UTC"
+deploy_user: deploy
+deploy_group: deploy
+app_name: myapp

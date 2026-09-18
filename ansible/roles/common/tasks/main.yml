@@ -1,0 +1,46 @@
+---
+- name: Update all packages
+  dnf:
+    name: "*"
+    state: latest
+    update_cache: true
+
+- name: Install baseline packages
+  dnf:
+    name:
+      - vim
+      - curl
+      - wget
+      - unzip
+      - htop
+      - chrony
+    state: present
+
+- name: Ensure chrony (NTP) is running for accurate clocks
+  service:
+    name: chronyd
+    state: started
+    enabled: true
+
+- name: Set timezone
+  community.general.timezone:
+    name: "{{ server_timezone }}"
+
+- name: Create deploy group
+  group:
+    name: "{{ deploy_group }}"
+    state: present
+
+- name: Create deploy user
+  user:
+    name: "{{ deploy_user }}"
+    group: "{{ deploy_group }}"
+    shell: /bin/bash
+    create_home: true
+
+- name: Set up log rotation for app logs
+  template:
+    src: logrotate-app.j2
+    dest: /etc/logrotate.d/{{ app_name }}
+    owner: root
+    mode: "0644"
